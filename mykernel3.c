@@ -19,6 +19,7 @@
 static struct {
 	int valid;	// Is this a valid entry (was sem allocated)?
 	int value;	// value of semaphore
+	int waitlist[MAXPROCS];
 } semtab[MAXSEMS];
 
 
@@ -29,12 +30,15 @@ static struct {
 
 void InitSem ()
 {
-	int s;
+	int s, i;
 
 	/* modify or add code any way you wish */
 
 	for (s = 0; s < MAXSEMS; s++) {		// mark all sems free
 		semtab[s].valid = FALSE;
+		for (i = 0; i < MAXPROCS; i++) {
+			semtab[s].waitlist[i] = -1;
+		}
 	}
 }
 
@@ -76,10 +80,19 @@ void MyWait (p, s)
 	int p;				// process
 	int s;				// semaphore
 {
+	int i;
 	/* modify or add code any way you wish */
 
 	semtab[s].value--;
-	if (semtab[s].value < 0) Block(p);
+	if (semtab[s].value < 0) {
+		// TODO: FIFO?
+		for (i = 0; i < MAXPROCS; i++) {
+			if (semtab[s].waitlist[i] == -1) {
+				semtab[s].waitlist[i] = p;
+			}
+		}
+		Block(p);
+	}
 }
 
 /*	MySignal (p, s) is called by the kernel whenever the system call
@@ -90,9 +103,16 @@ void MySignal (p, s)
 	int p;				// process
 	int s;				// semaphore
 {
+	int i, proc;
 	/* modify or add code any way you wish */
 
 	semtab[s].value++;
-	Unblock(2);
-}
+	for (i = 0; i < MAXPROCS; i++) {
+		if (semtab[s].waitlist[i] != -1) {
+			proc = semtab[s].waitlist[i];
+			semtab[s].waitlist[i] = -1;
+			Unblock(proc);
+		}
+	}
+}	
 
