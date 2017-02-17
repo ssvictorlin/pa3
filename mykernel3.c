@@ -20,6 +20,7 @@ static struct {
 	int valid;	// Is this a valid entry (was sem allocated)?
 	int value;	// value of semaphore
 	int waitlist[MAXPROCS];
+	int w_ptr, s_ptr;
 } semtab[MAXSEMS];
 
 
@@ -30,15 +31,12 @@ static struct {
 
 void InitSem ()
 {
-	int s, i;
+	int s;
 
 	/* modify or add code any way you wish */
 
 	for (s = 0; s < MAXSEMS; s++) {		// mark all sems free
 		semtab[s].valid = FALSE;
-		for (i = 0; i < MAXPROCS; i++) {
-			semtab[s].waitlist[i] = -1;
-		}
 	}
 }
 
@@ -52,8 +50,8 @@ void InitSem ()
 
 int MySeminit (int p, int v)
 {
-	int s;
-
+	int s, i;
+	
 	/* modify or add code any way you wish */
 
 	for (s = 0; s < MAXSEMS; s++) {
@@ -68,6 +66,11 @@ int MySeminit (int p, int v)
 
 	semtab[s].valid = TRUE;
 	semtab[s].value = v;
+	for (i = 0; i < MAXPROCS; i++) {
+		semtab[s].waitlist[i] = -1;
+	}
+	semtab[s].w_ptr = 0;
+	semtab[s].s_ptr = 0;
 
 	return (s);
 }
@@ -86,12 +89,11 @@ void MyWait (p, s)
 	semtab[s].value--;
 	if (semtab[s].value < 0) {
 		// TODO: FIFO?
-		for (i = 0; i < MAXPROCS; i++) {
-			if (semtab[s].waitlist[i] == -1) {
-				semtab[s].waitlist[i] = p;
-			}
-		}
+		semtab[s].waitlist[semtab[s].w_ptr] = p;
+		semtab[s].w_ptr = (semtab[s].w_ptr+1)%10; 
+		if (semtab[s].w_ptr > semtab[s].s_ptr) Printf("w_ptr error...");
 		Block(p);
+		
 	}
 }
 
@@ -107,12 +109,9 @@ void MySignal (p, s)
 	/* modify or add code any way you wish */
 
 	semtab[s].value++;
-	for (i = 0; i < MAXPROCS; i++) {
-		if (semtab[s].waitlist[i] != -1) {
-			proc = semtab[s].waitlist[i];
-			semtab[s].waitlist[i] = -1;
-			Unblock(proc);
-		}
-	}
+	proc = semtab[s].waitlist[semtab[s].s_ptr];
+	semtab[s].waitlist[semtab[s].s_ptr] = -1;
+	semtab[s].s_ptr = (semtab[s].s_ptr+1)%10;
+	Unblock(proc);
 }	
 

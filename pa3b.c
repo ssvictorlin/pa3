@@ -97,7 +97,7 @@ void Main ()
 	int sem;
 
 	sem = Seminit (0);
-
+	Printf("semaphore is now: %d...\n", sem);
 	if (Fork () == 0) {
 		Wait (sem);			// car 2
 		Delay (0);

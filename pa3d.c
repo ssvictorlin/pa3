@@ -139,6 +139,14 @@
 
 void InitRoad (void);
 void driveRoad (int from, int mph);
+struct {
+	int semlist[MAXSEMS];
+	int westlist[MAXPROC];
+	int eastlist[MAXPROC];
+	int state;
+	int wf_ptr, wr_ptr;
+	int ef_ptr, er_ptr;
+} shm;
 
 void Main ()
 {
@@ -184,7 +192,18 @@ void Main ()
 
 void InitRoad ()
 {
+	int i;
 	/* do any initializations here */
+	Regshm((char *) &shm, sizeof(shm));
+	for (i = 0; i < MAXSEMS; i++) {
+		shm.semlist[i] = 11;
+	}
+	for (i = 0; i < MAXPROC; i++) {
+		shm.westlist[i] = -1;
+		shm.eastlist[i] = -1;
+	}
+	shm.state = 0;
+	shm.wf_ptr = shm.wr_ptr = shm.ef_ptr = shm.er_ptr = 0;
 }
 
 #define IPOS(FROM)	(((FROM) == WEST) ? 1 : NUMPOS)
@@ -199,6 +218,8 @@ void driveRoad (from, mph)
 	c = Getpid ();			// learn this car's ID
 
 	EnterRoad (from);
+	if (shm.semlist[from] == 11) shm.semlist[from] = Seminit (0);
+	Wait(shm.semlist[from]);
 	PrintRoad ();
 	Printf ("Car %d enters at %d at %d mph\n", c, IPOS(from), mph);
 
@@ -212,13 +233,17 @@ void driveRoad (from, mph)
 		}
 
 		Delay (3600/mph);
+		Wait(shm.semlist[np]);	
 		ProceedRoad ();
 		PrintRoad ();
 		Printf ("Car %d moves from %d to %d\n", c, p, np);
-	}
+		Signal(shm.semlist[p]);
+	}	
 
 	Delay (3600/mph);
 	ProceedRoad ();
 	PrintRoad ();
 	Printf ("Car %d exits road\n", c);
+	Signal(shm.semlist[np]);
+	
 }
