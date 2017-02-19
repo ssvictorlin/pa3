@@ -92,7 +92,7 @@ void MyWait (p, s)
 		semtab[s].waitlist[semtab[s].w_ptr] = p;
 		semtab[s].w_ptr = (semtab[s].w_ptr+1)%10; 
 		//if (semtab[s].w_ptr > semtab[s].s_ptr) Printf("w_ptr error...");
-		//Printf("Blocking %d proc...\n", p); 
+		Printf("s value: %d, Blocking proc %d...\n", s, p); 
 		Block(p);	
 	}
 }
@@ -114,7 +114,7 @@ void MySignal (p, s)
 	if (proc != -1) {
 		semtab[s].waitlist[semtab[s].s_ptr] = -1;
 		semtab[s].s_ptr = (semtab[s].s_ptr+1)%10;
-		//Printf("Unblocking %d proc...\n", proc); 
+		Printf("s value: %d, Unblocking %d proc...\n", s, proc); 
 		Unblock(proc);
 	}
 }	
