@@ -161,13 +161,13 @@ void Main ()
 	 */
 
 	if (Fork () == 0) {
-		Delay (250);			// car 2
+		Delay (500);			// car 2
 		driveRoad (EAST, 60);
 		Exit ();
 	}
 
 	if (Fork () == 0) {
-		Delay (500);			// car 3
+		Delay (250);			// car 3
 		driveRoad (WEST, 50);
 		Exit ();
 	}
@@ -224,13 +224,11 @@ void driveRoad (from, mph)
 	Wait(shm.semlist[TO(from)]);      //1 check first car
 	if (TO(from) == 0) {
 		shm.toRightCount++;
-		if (shm.toRightCount == 1) Wait(shm.semlist[12]);
-		Wait(shm.semlist[13]);  // 4 for all cars, check the oppo dir <-
+		if (shm.toRightCount == 1) Wait(shm.semlist[13]);
 	}
 	else {
 		shm.toLeftCount++;
-		if (shm.toLeftCount == 1) Wait(shm.semlist[13]);
-		Wait(shm.semlist[12]);
+		if (shm.toLeftCount == 1) Wait(shm.semlist[12]);
 	}
 	Wait(shm.semlist[IPOS(from)]);	  //2 check first pos
 	
@@ -267,13 +265,11 @@ void driveRoad (from, mph)
 	Printf ("Car %d exits road\n", c);
 	if (TO(from) == 0) {
 		shm.toRightCount--;
-		if (shm.toRightCount == 0) Signal(shm.semlist[12]);
-		Signal(shm.semlist[13]);
+		if (shm.toRightCount == 0) Signal(shm.semlist[13]);
 	}
 	else {
 		shm.toLeftCount--;
-		if (shm.toLeftCount == 0) Signal(shm.semlist[13]);
-		Signal(shm.semlist[12]);
+		if (shm.toLeftCount == 0) Signal(shm.semlist[12]);
 	}
 
 	Signal(shm.semlist[np]);
