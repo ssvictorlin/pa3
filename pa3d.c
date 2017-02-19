@@ -141,11 +141,10 @@ void InitRoad (void);
 void driveRoad (int from, int mph);
 struct {
 	int semlist[MAXSEMS];
-	int westlist[MAXPROC];
-	int eastlist[MAXPROC];
+	int westlist[MAXPROCS];
+	int eastlist[MAXPROCS];
 	int state;
-	int wf_ptr, wr_ptr;
-	int ef_ptr, er_ptr;
+	int toRightCount, toLeftCount;
 } shm;
 
 void Main ()
@@ -162,12 +161,12 @@ void Main ()
 	 */
 
 	if (Fork () == 0) {
-		Delay (1162);			// car 2
-		driveRoad (WEST, 60);
+		Delay (250);			// car 2
+		driveRoad (EAST, 60);
 		Exit ();
 	}
 
-	if (Fork () == 0) {
+	/*if (Fork () == 0) {
 		Delay (900);			// car 3
 		driveRoad (EAST, 50);
 		Exit ();
@@ -177,7 +176,7 @@ void Main ()
 		Delay (900);			// car 4
 		driveRoad (WEST, 30);
 		Exit ();
-	}
+	}*/
 
 	driveRoad (EAST, 40);			// car 1
 
@@ -196,18 +195,20 @@ void InitRoad ()
 	/* do any initializations here */
 	Regshm((char *) &shm, sizeof(shm));
 	for (i = 0; i < MAXSEMS; i++) {
-		shm.semlist[i] = 11;
+		if ( i >= 0 && i <=11) shm.semlist[i] = 1;
+		else shm.semlist[i] = 100;
 	}
-	for (i = 0; i < MAXPROC; i++) {
+	for (i = 0; i < MAXPROCS; i++) {
 		shm.westlist[i] = -1;
 		shm.eastlist[i] = -1;
 	}
 	shm.state = 0;
-	shm.wf_ptr = shm.wr_ptr = shm.ef_ptr = shm.er_ptr = 0;
+	shm.toRightCount = 0;
+	shm.toLeftCount = 0;
 }
 
 #define IPOS(FROM)	(((FROM) == WEST) ? 1 : NUMPOS)
-
+#define TOWARD(FROM)    (((FROM) == WEST) ? 0 : 11)
 void driveRoad (from, mph)
 	int from;			// coming from which direction
 	int mph;			// speed of car
@@ -216,13 +217,15 @@ void driveRoad (from, mph)
 	int p, np, i;			// positions
 
 	c = Getpid ();			// learn this car's ID
-
+	
 	EnterRoad (from);
-	if (shm.semlist[from] == 11) shm.semlist[from] = Seminit (0);
-	Wait(shm.semlist[from]);
+	
+	Wait(shm.semlist[TOWARD(from)]);  // check first car
+	Wait(shm.semlist[IPOS(from)]);
+	/* -------CS------- */	
 	PrintRoad ();
 	Printf ("Car %d enters at %d at %d mph\n", c, IPOS(from), mph);
-
+	Signal(shm.semlist[TOWARD(from)]);  
 	for (i = 1; i < NUMPOS; i++) {
 		if (from == WEST) {
 			p = i;
@@ -233,17 +236,22 @@ void driveRoad (from, mph)
 		}
 
 		Delay (3600/mph);
+		
 		Wait(shm.semlist[np]);	
+		/* --------CS------ */
 		ProceedRoad ();
 		PrintRoad ();
 		Printf ("Car %d moves from %d to %d\n", c, p, np);
+
 		Signal(shm.semlist[p]);
 	}	
 
 	Delay (3600/mph);
+	/* -------CS------- */
 	ProceedRoad ();
 	PrintRoad ();
 	Printf ("Car %d exits road\n", c);
+
 	Signal(shm.semlist[np]);
 	
 }

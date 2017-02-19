@@ -91,9 +91,9 @@ void MyWait (p, s)
 		// TODO: FIFO?
 		semtab[s].waitlist[semtab[s].w_ptr] = p;
 		semtab[s].w_ptr = (semtab[s].w_ptr+1)%10; 
-		if (semtab[s].w_ptr > semtab[s].s_ptr) Printf("w_ptr error...");
-		Block(p);
-		
+		//if (semtab[s].w_ptr > semtab[s].s_ptr) Printf("w_ptr error...");
+		//Printf("Blocking %d proc...\n", p); 
+		Block(p);	
 	}
 }
 
@@ -109,9 +109,13 @@ void MySignal (p, s)
 	/* modify or add code any way you wish */
 
 	semtab[s].value++;
+	//Printf("proc %d signaling sem %d value = %d ...\n", p, s, semtab[s].value); 
 	proc = semtab[s].waitlist[semtab[s].s_ptr];
-	semtab[s].waitlist[semtab[s].s_ptr] = -1;
-	semtab[s].s_ptr = (semtab[s].s_ptr+1)%10;
-	Unblock(proc);
+	if (proc != -1) {
+		semtab[s].waitlist[semtab[s].s_ptr] = -1;
+		semtab[s].s_ptr = (semtab[s].s_ptr+1)%10;
+		//Printf("Unblocking %d proc...\n", proc); 
+		Unblock(proc);
+	}
 }	
 
