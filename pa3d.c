@@ -145,11 +145,24 @@ struct {
 	int eastlist[MAXPROCS];
 	int state;
 	int toRightCount, toLeftCount;
+        int waitPtr_w, waitPtr_e;
 } shm;
+
+void test_1();
+void test_2();
+void test_3();
+void test_4();
+void test_5();
+void test_6();
+void test_7();
+void test_8();
+void test_9();
+void test_10();
+void test_11();
 
 void Main ()
 {
-	InitRoad ();
+	//InitRoad ();
 
 	/* The following code is specific to this particular simulation,
 	 * e.g., number of cars, directions, and speeds.  You should
@@ -159,28 +172,41 @@ void Main ()
 	 * which will first call InitRoad before any calls to driveRoad.
 	 * So, you should do any initializations in InitRoad.
 	 */
+/*
+	if (Fork () == 0) {
+		Delay (30);			// car 2
+		driveRoad (WEST, 60);
+		Exit ();
+	}
 
 	if (Fork () == 0) {
-		Delay (500);			// car 2
+		Delay (50);			// car 3
+		driveRoad (EAST, 80);
+		Exit ();
+	}
+
+	if (Fork () == 0) {
+		Delay (400);			// car 4
+		driveRoad (WEST, 30);
+		Exit ();
+	}
+	if (Fork () == 0) {
+		Delay (900);			// car 5
+		driveRoad (EAST, 90);
+		Exit ();
+	}
+	if (Fork () == 0) {
+		Delay (900);			// car 6
 		driveRoad (EAST, 60);
 		Exit ();
 	}
 
-	if (Fork () == 0) {
-		Delay (250);			// car 3
-		driveRoad (WEST, 50);
-		Exit ();
-	}
-/*
-	if (Fork () == 0) {
-		Delay (900);			// car 4
-		driveRoad (WEST, 30);
-		Exit ();
-	}*/
-
 	driveRoad (WEST, 40);			// car 1
 
 	Exit ();
+*/
+	test_11();
+
 }
 
 /* Our tests will call your versions of InitRoad and driveRoad, so your
@@ -195,7 +221,8 @@ void InitRoad ()
 	/* do any initializations here */
 	Regshm((char *) &shm, sizeof(shm));
 	for (i = 0; i < MAXSEMS; i++) {
-		if ( i >= 0 && i <=13) {
+		//31~40 for 2, 41~45 for mutex
+		if (( i >= 0 && i <=13) || (i >= 31 && i<= 45) || i == 60 || i == 70) {
 			shm.semlist[i] = Seminit(1);
 		}
 		else shm.semlist[i] = 100;
@@ -207,6 +234,8 @@ void InitRoad ()
 	shm.state = 0;
 	shm.toRightCount = 0;
 	shm.toLeftCount = 0;
+        shm.waitPtr_w = 31;
+        shm.waitPtr_e = 31;
 }
 
 #define IPOS(FROM)	(((FROM) == WEST) ? 1 : NUMPOS)
@@ -217,20 +246,56 @@ void driveRoad (from, mph)
 {
 	int c;				// car ID c = process ID
 	int p, np, i;			// positions
+	int waitPtr;
 
 	c = Getpid ();			// learn this car's ID
 	
 	//Printf("TO(from) is %d...", TO(from));	
 	Wait(shm.semlist[TO(from)]);      //1 check first car
-	if (TO(from) == 0) {
-		shm.toRightCount++;
-		if (shm.toRightCount == 1) Wait(shm.semlist[13]);
+        //Wait(shm.semlist[IPOS(from)]);	  //3 check first pos
+
+	if (!TO(from)) {
+		Wait(shm.semlist[60]);
+	} else {
+		Wait(shm.semlist[70]);
 	}
-	else {
-		shm.toLeftCount++;
-		if (shm.toLeftCount == 1) Wait(shm.semlist[12]);
-	}
-	Wait(shm.semlist[IPOS(from)]);	  //2 check first pos
+        Wait(shm.semlist[41]);
+        waitPtr = -1;                 //2 check same direction and no wait in the opposite
+	if (from == WEST) {
+                if (shm.waitPtr_e == -1) {
+                        if (shm.waitPtr_w == 40) {
+                                shm.waitPtr_w = 31;
+                        }
+                        else {
+                                shm.waitPtr_w ++;
+                        }
+                } 
+                else {
+                        shm.waitPtr_w = shm.waitPtr_e;
+                        shm.waitPtr_e = -1;
+                }
+                waitPtr = shm.waitPtr_w;
+        }
+        else {
+                if (shm.waitPtr_w == -1) {
+                        if (shm.waitPtr_e == 40) {
+                                shm.waitPtr_e = 31;
+                        }
+                        else {
+                                shm.waitPtr_e ++;
+                        }
+                }
+                else {
+                        shm.waitPtr_e = shm.waitPtr_w;
+                        shm.waitPtr_w = -1;
+                }
+                waitPtr = shm.waitPtr_e;
+        }
+        //Printf("\n%d\n", waitPtr);
+        Wait(shm.semlist[waitPtr]);
+        Signal(shm.semlist[41]);
+
+        Wait(shm.semlist[IPOS(from)]);	  //3 check first pos
 	
 	/* -------CS------- */	
 	EnterRoad (from);
@@ -253,9 +318,17 @@ void driveRoad (from, mph)
 		ProceedRoad ();
 		PrintRoad ();
 		Printf ("Car %d moves from %d to %d\n", c, p, np);
-
-		Signal(shm.semlist[p]);  //2
-	}	
+		Signal(shm.semlist[p]);  //3
+		if (!TO(from)) {
+			if (p == 1) {
+				Signal(shm.semlist[60]);
+			}
+		} else {
+			if (p == 10) {
+				Signal(shm.semlist[70]);
+			}
+		}
+	}
 
 	Delay (3600/mph);
 
@@ -263,15 +336,438 @@ void driveRoad (from, mph)
 	ProceedRoad ();
 	PrintRoad ();
 	Printf ("Car %d exits road\n", c);
-	if (TO(from) == 0) {
+	/*if (TO(from) == 0) {
 		shm.toRightCount--;
 		if (shm.toRightCount == 0) Signal(shm.semlist[13]);
 	}
 	else {
 		shm.toLeftCount--;
 		if (shm.toLeftCount == 0) Signal(shm.semlist[12]);
-	}
+	}*/
 
+        Signal(shm.semlist[waitPtr]);	
 	Signal(shm.semlist[np]);
-	
+}
+
+void test_1()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (0);            // car 2
+        driveRoad (EAST, 60);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (00);            // car 3
+        driveRoad (EAST, 50);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (00);            // car 4
+        driveRoad (WEST, 30);
+        Exit ();
+    }
+        
+        if (Fork () == 0) {
+        Delay (00);            // car 5
+        driveRoad (EAST, 60);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (00);            // car 6
+        driveRoad (EAST, 50);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (00);            // car 7
+        driveRoad (WEST, 30);
+        Exit ();
+    }
+
+    driveRoad (WEST, 40);            // car 1
+        Exit();
+}
+
+void test_2()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (0);            // car 2
+        driveRoad (WEST, 60);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (10);            // car 3
+        driveRoad (EAST, 50);
+        Exit ();
+    }
+
+    driveRoad (WEST, 1);            // car 1
+
+    Exit ();
+
+}
+
+void test_3()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (700);            // car 2
+        driveRoad (EAST, 60);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (600);            // car 3
+        driveRoad (WEST, 50);
+        Exit ();
+    }
+    if (Fork () == 0) {
+        Delay (800);            // car 3
+        driveRoad (EAST, 30);
+        Exit ();
+    }
+
+    driveRoad (WEST, 40);            // car 1
+
+    Exit ();
+
+}
+
+void test_4()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (5);            // car 2
+        driveRoad (EAST, 60);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (10);            // car 3
+        driveRoad (WEST, 50);
+        Exit ();
+    }
+
+    driveRoad (EAST, 10);            // car 1
+
+    Exit ();
+}
+
+void test_5()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (5);            // car 2
+        driveRoad (EAST, 60);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (10);            // car 3
+        driveRoad (WEST, 50);
+        Exit ();
+    }
+
+           if (Fork () == 0) {
+            Delay (10);            // car 4
+        driveRoad (WEST, 50);
+        Exit ();
+    }
+
+
+    driveRoad (EAST, 10);            // car 1
+
+    Exit ();
+}
+
+void test_6()
+{
+        InitRoad ();
+
+    if (Fork () == 0) {
+        driveRoad (WEST, 40);
+        Exit ();
+    }
+    if (Fork () == 0) {
+        driveRoad (WEST, 40);
+        Exit ();
+    }
+    if (Fork () == 0) {
+        driveRoad (WEST, 40);
+        Exit ();
+    }
+    if (Fork () == 0) {
+        Delay (20);
+        driveRoad (EAST, 40);
+        Exit ();
+    }
+
+    Delay (450);
+
+    while (1) {
+        Delay (900);
+        if (Fork () == 0) {
+            driveRoad (EAST, 40);
+            Exit ();
+        }
+        Delay (900);
+        if (Fork () == 0) {
+            driveRoad (WEST, 40);
+            Exit ();
+        }
+    }
+}
+
+void test_7()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (10);            // car 2
+        driveRoad (EAST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (0);            // car 3
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (20);            // car 4
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+
+    driveRoad (EAST, 3599);            // car 1
+
+    Exit ();
+}
+
+void test_8()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (0);            // car 2
+        driveRoad (EAST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (0);            // car 3
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+           if (Fork () == 0) {
+            Delay (10);            // car 4
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+
+    driveRoad (EAST, 3599);            // car 1
+
+    Exit ();
+}
+
+void test_9()
+{
+    InitRoad ();
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 10);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 20);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 30);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 40);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 50);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 60);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 70);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 80);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (WEST, 90);
+        Exit ();
+    }
+    
+    driveRoad (WEST, 5);
+    
+    Exit ();
+}
+
+void test_10()
+{
+    InitRoad ();
+
+    if (Fork () == 0) {
+        Delay (1);              // car 2
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (2);              // car 3
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (3);              // car 4
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (4);              // car 5
+        driveRoad (WEST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (5);              // car 6
+        driveRoad (EAST, 3599);
+        Exit ();
+    }
+    if (Fork () == 0) {
+        Delay (6);              // car 7
+        driveRoad (EAST, 3599);
+        Exit ();
+    } 
+
+    if (Fork () == 0) {
+        Delay (7);              // car 8
+        driveRoad (EAST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (8);              // car 9
+        driveRoad (EAST, 3599);
+        Exit ();
+    }
+
+    if (Fork () == 0) {
+        Delay (9);              // car 10
+        driveRoad (EAST, 3599);
+        Exit ();
+    }
+    driveRoad (WEST, 3599);     // car 1
+
+    Exit ();
+}
+
+void test_11()
+{
+    InitRoad ();
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 10);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 20);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 30);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 40);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 50);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 60);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 70);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 80);
+        Exit ();
+    }
+    
+    if (Fork () == 0) {
+        Delay (0);
+        driveRoad (EAST, 90);
+        Exit ();
+    }
+    
+    driveRoad (EAST, 5);
+    
+    Exit ();
 }
